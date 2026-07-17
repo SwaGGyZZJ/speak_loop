@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Mobile-first AI role-play practice for workplace English.",
     start_url: "/",
     display: "standalone",
-    background_color: "#faf7f2",
-    theme_color: "#5b9a8e",
+    background_color: "#fdf6e3",
+    theme_color: "#e8765c",
     icons: [
       {
         src: "/icon.svg",
