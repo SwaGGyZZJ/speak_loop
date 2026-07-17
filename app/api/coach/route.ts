@@ -34,6 +34,19 @@ function jsonFallback(action: string) {
     return NextResponse.json({ ok: false, source: "fallback", assessment: fallbackAssessment });
   }
 
+  if (action === "ielts-assessment") {
+    return NextResponse.json({ ok: false, source: "fallback" });
+  }
+
+  if (action === "ielts-dialogue") {
+    return NextResponse.json({
+      ok: false,
+      source: "fallback",
+      nextQuestion: "Can you tell me more about that? What made it memorable for you?",
+      suggestion: "Try to use a specific example and explain your feelings about it."
+    });
+  }
+
   return NextResponse.json({
     ok: false,
     source: "fallback",
@@ -45,13 +58,16 @@ function jsonFallback(action: string) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = (typeof body.userApiKey === "string" && body.userApiKey.trim()) || process.env.DEEPSEEK_API_KEY;
 
   if (!apiKey) {
     return jsonFallback(body.action);
   }
 
+  const model = (typeof body.userModel === "string" && body.userModel.trim()) || process.env.DEEPSEEK_MODEL || "deepseek-chat";
+
   const action = String(body.action ?? "dialogue");
+  const isIELTS = action === "ielts-dialogue" || action === "ielts-assessment";
   const transcript = (body.transcript ?? []) as TranscriptLine[];
   const targetExpressions = Array.isArray(body.targetExpressions) ? body.targetExpressions.join("; ") : "";
   const task = body.task ?? body.topic ?? {};
@@ -64,6 +80,15 @@ Recommended reason: ${memory.recommendedReason ?? ""}
 Saved phrases: ${JSON.stringify(memory.savedPhrases ?? [])}`
     : "No stored user memory yet.";
 
+  const ieltsRubric = `
+Assess IELTS Speaking using the official band descriptors (bands 5-9) across four criteria:
+- Fluency & Coherence: speech rate, willingness to talk, topic development, cohesive devices, logical flow
+- Lexical Resource: vocabulary range, precision, paraphrase, idiomatic language, collocations
+- Grammatical Range & Accuracy: variety of structures (simple/compound/complex), error frequency, tense variety
+- Pronunciation: individual sounds, word/sentence stress, intonation, chunking, ease of understanding
+Each criterion is scored on band 5-9. Overall band is the average rounded to nearest 0.5.
+`;
+
   const workplaceRubric = `
 Assess workplace speaking for practical communication, not exam scoring:
 - Clarity: whether the listener can quickly understand the point.
@@ -75,12 +100,64 @@ All outputs are practice estimates only.
 `;
 
   const system =
-    action === "assessment"
-      ? "You are a workplace English speaking coach. Return strict JSON only. Assess practical workplace communication. Cite the user's transcript, rewrite concrete sentences, and judge task completion. Do not behave like an IELTS/TOEFL examiner."
-      : "You are role-playing a workplace conversation. Return strict JSON only. Stay in the assigned workplace role, keep the user focused on the task goal, ask one realistic follow-up, and teach one concise expression or correction.";
+    action === "ielts-assessment"
+      ? "You are an IELTS Speaking examiner. Return strict JSON only. Assess using official IELTS band descriptors (bands 5-9). Cite transcript evidence for each criterion. Provide specific, actionable improvement tips."
+      : action === "ielts-dialogue"
+        ? "You are an IELTS Speaking examiner conducting a practice test. Return strict JSON only. Ask natural follow-up questions appropriate to the IELTS part being practiced. Keep the conversation flowing like a real test."
+        : action === "assessment"
+          ? "You are a workplace English speaking coach. Return strict JSON only. Assess practical workplace communication. Cite the user's transcript, rewrite concrete sentences, and judge task completion. Do not behave like an IELTS/TOEFL examiner."
+          : "You are role-playing a workplace conversation. Return strict JSON only. Stay in the assigned workplace role, keep the user focused on the task goal, ask one realistic follow-up, and teach one concise expression or correction.";
+
+  const ieltsAssessmentPrompt = `Assess this IELTS Speaking practice.
+IELTS Part: ${body.ieltsPart ?? 2}
+Cue card / topic: ${JSON.stringify(task)}
+User profile: ${JSON.stringify(profile)}
+Transcript: ${JSON.stringify(transcript)}
+Rubric:
+${ieltsRubric}
+
+Return JSON:
+{
+  "overallBand": 5 | 6 | 7 | 8 | 9,
+  "criteria": [
+    { "key": "fluency", "label": "流利度与连贯性", "labelEn": "Fluency & Coherence", "band": 5-9, "feedback": "specific feedback with transcript evidence" },
+    { "key": "vocabulary", "label": "词汇资源", "labelEn": "Lexical Resource", "band": 5-9, "feedback": "specific feedback with transcript evidence" },
+    { "key": "grammar", "label": "语法范围与准确性", "labelEn": "Grammatical Range & Accuracy", "band": 5-9, "feedback": "specific feedback with transcript evidence" },
+    { "key": "pronunciation", "label": "发音", "labelEn": "Pronunciation", "band": 5-9, "feedback": "assessment based on text patterns, noting that actual pronunciation needs audio" }
+  ],
+  "summary": "overall assessment in 2-3 sentences",
+  "strengths": ["2-3 specific strengths with evidence"],
+  "weaknesses": ["2-3 specific weaknesses with evidence"],
+  "suggestions": ["3-4 actionable tips to improve to the next band"],
+  "sentenceRewrites": [
+    { "original": "exact user sentence", "improved": "band-improved version", "reason": "why it's better for IELTS" }
+  ]
+}`;
+
+  const ieltsDialoguePrompt = `Continue this IELTS Speaking practice.
+IELTS Part: ${body.ieltsPart ?? 2}
+Topic: ${JSON.stringify(task)}
+Transcript: ${JSON.stringify(transcript)}
+
+Rules:
+- Act as an IELTS examiner. Ask natural follow-up questions.
+- For Part 1: ask about familiar topics, keep it conversational.
+- For Part 2: if the user hasn't covered all cue card points, gently prompt them.
+- For Part 3: ask abstract, analytical questions related to the Part 2 topic.
+- Give one suggestion for improvement after each exchange.
+
+Return JSON:
+{
+  "nextQuestion": "examiner's next question or prompt",
+  "suggestion": "one specific tip for the user"
+}`;
 
   const user =
-    action === "assessment"
+    action === "ielts-assessment"
+      ? ieltsAssessmentPrompt
+      : action === "ielts-dialogue"
+        ? ieltsDialoguePrompt
+        : action === "assessment"
       ? `Assess this workplace speaking practice.
 Task title: ${task.title}
 Scenario: ${task.categoryLabel ?? task.category}
@@ -148,7 +225,7 @@ Return JSON:
         Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL ?? "deepseek-chat",
+        model,
         temperature: 0.65,
         response_format: { type: "json_object" },
         messages: [
@@ -159,19 +236,36 @@ Return JSON:
     });
 
     if (!response.ok) {
-      return jsonFallback(action);
+      const errorText = await response.text().catch(() => "unreadable");
+      console.error("[coach] DeepSeek API error:", response.status, errorText);
+      return NextResponse.json({ ok: false, source: "fallback", error: `deepseek_${response.status}`, detail: errorText.slice(0, 200) });
     }
 
     const data = await response.json();
     const content = data?.choices?.[0]?.message?.content;
-    const parsed = JSON.parse(content);
+    if (!content) {
+      console.error("[coach] DeepSeek returned no content:", JSON.stringify(data).slice(0, 300));
+      return NextResponse.json({ ok: false, source: "fallback", error: "no_content" });
+    }
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      console.error("[coach] DeepSeek returned non-JSON content:", content.slice(0, 300));
+      return NextResponse.json({ ok: false, source: "fallback", error: "parse_failed", content: content.slice(0, 200) });
+    }
 
     if (action === "assessment") {
       return NextResponse.json({ ok: true, source: "deepseek", assessment: parsed });
     }
 
+    if (action === "ielts-assessment") {
+      return NextResponse.json({ ok: true, source: "deepseek", assessment: parsed });
+    }
+
     return NextResponse.json({ ok: true, source: "deepseek", ...parsed });
-  } catch {
-    return jsonFallback(action);
+  } catch (err) {
+    console.error("[coach] fetch error:", err);
+    return NextResponse.json({ ok: false, source: "fallback", error: "fetch_error", detail: String(err).slice(0, 200) });
   }
 }
