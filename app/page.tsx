@@ -91,7 +91,7 @@ export default function LandingPage() {
           三种练习<span className="titleDot">·</span>一个本子
         </h2>
         <div className="stickyGrid">
-          <div className="stickyCard stickyCardGreen">
+          <Link href="/app" className="stickyCard stickyCardGreen">
             <div className="stickyCardPin" />
             <div className="stickyIcon stickyIconGreen">
               <GraduationCap size={28} />
@@ -103,8 +103,8 @@ export default function LandingPage() {
               <li><Check size={13} /> 四维度 AI 评分</li>
               <li><Check size={13} /> 语音输入 + 考官追问</li>
             </ul>
-          </div>
-          <div className="stickyCard stickyCardOrange" style={{ marginTop: 24 }}>
+          </Link>
+          <Link href="/app" className="stickyCard stickyCardOrange" style={{ marginTop: 24 }}>
             <div className="stickyCardPin" />
             <div className="stickyIcon stickyIconOrange">
               <BookOpen size={28} />
@@ -116,8 +116,8 @@ export default function LandingPage() {
               <li><Check size={13} /> 角色扮演实时反馈</li>
               <li><Check size={13} /> 任务完成度评估</li>
             </ul>
-          </div>
-          <div className="stickyCard stickyCardBlue" style={{ marginTop: 12 }}>
+          </Link>
+          <Link href="/app/shadow" className="stickyCard stickyCardBlue" style={{ marginTop: 12 }}>
             <div className="stickyCardPin" />
             <div className="stickyIcon stickyIconBlue">
               <Mic size={28} />
@@ -129,7 +129,7 @@ export default function LandingPage() {
               <li><Check size={13} /> 点击收藏生词带释义</li>
               <li><Check size={13} /> 全片跟读 + 逐句模式</li>
             </ul>
-          </div>
+          </Link>
         </div>
       </section>
 

@@ -2302,6 +2302,9 @@ textarea {
   border-radius: 2px 2px var(--radius-sm) var(--radius-sm);
   box-shadow: var(--shadow-sticky);
   transition: transform var(--duration-normal) var(--ease-spring);
+  text-decoration: none;
+  color: inherit;
+  display: block;
 }
 
 .stickyCard:hover {
