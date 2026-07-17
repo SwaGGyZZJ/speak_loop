@@ -88,7 +88,7 @@ export default function LandingPage() {
 
       <section className="stickySection">
         <h2 className="sectionTitle">
-          两种练习<span className="titleDot">·</span>一个本子
+          三种练习<span className="titleDot">·</span>一个本子
         </h2>
         <div className="stickyGrid">
           <div className="stickyCard stickyCardGreen">
@@ -115,6 +115,19 @@ export default function LandingPage() {
               <li><Check size={13} /> 可复用表达句库</li>
               <li><Check size={13} /> 角色扮演实时反馈</li>
               <li><Check size={13} /> 任务完成度评估</li>
+            </ul>
+          </div>
+          <div className="stickyCard stickyCardBlue" style={{ marginTop: 12 }}>
+            <div className="stickyCardPin" />
+            <div className="stickyIcon stickyIconBlue">
+              <Mic size={28} />
+            </div>
+            <h3>AI 跟读</h3>
+            <ul>
+              <li><Check size={13} /> 真实场景视频 + 逐句跟读</li>
+              <li><Check size={13} /> AI 对比评分发音</li>
+              <li><Check size={13} /> 点击收藏生词带释义</li>
+              <li><Check size={13} /> 全片跟读 + 逐句模式</li>
             </ul>
           </div>
         </div>

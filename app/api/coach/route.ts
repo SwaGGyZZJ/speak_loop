@@ -58,13 +58,13 @@ function jsonFallback(action: string) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const apiKey = (typeof body.userApiKey === "string" && body.userApiKey.trim()) || process.env.DEEPSEEK_API_KEY;
+  const apiKey = process.env.DEEPSEEK_API_KEY;
 
   if (!apiKey) {
     return jsonFallback(body.action);
   }
 
-  const model = (typeof body.userModel === "string" && body.userModel.trim()) || process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 
   const action = String(body.action ?? "dialogue");
   const isIELTS = action === "ielts-dialogue" || action === "ielts-assessment";

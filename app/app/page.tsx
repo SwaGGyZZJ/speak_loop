@@ -1402,13 +1402,14 @@ export default function Home() {
           <button className={step === "settings" ? "active" : ""} type="button" onClick={() => setStep("settings")}>
             <Settings size={18} /> AI 设置
           </button>
+          <a href="/app/shadow">AI 跟读</a>
           <a href="/help">帮助中心</a>
           <a href="/">返回首页</a>
         </nav>
         <div className="sidebarFooter">
           <div className="sidebarStatus">
-            <div className={`statusDot ${userApiKey ? "statusDotOn" : "statusDotOff"}`} />
-            <span>{userApiKey ? "AI 考官已启用" : "使用本地评分"}</span>
+            <div className={`statusDot statusDotOn`} />
+            <span>AI 考官已启用（每日 {DAILY_AI_LIMIT} 次）</span>
           </div>
           <p className="sidebarUsage">
             {dailyAiUsed}/{DAILY_AI_LIMIT} 次 AI 评分已用
@@ -2138,85 +2139,43 @@ export default function Home() {
 
         {step === "settings" && (
           <section className="screen slideScreen">
-            <ScreenTitle title="AI 设置" subtitle="配置你自己的 DeepSeek API Key 以启用 AI 考官评分。" />
+            <ScreenTitle title="AI 设置" subtitle="AI 考官由平台统一提供，无需自行配置。" />
 
             <div className="settingsPanel">
               <div className="settingsStatus">
-                <div className={`statusDot ${userApiKey ? "statusDotOn" : "statusDotOff"}`} />
-                <span>{userApiKey ? "AI 考官已启用" : "未配置 API Key，使用本地评分"}</span>
+                <div className="statusDot statusDotOn" />
+                <span>AI 考官已启用</span>
               </div>
 
               <div className="sourceNote">
-                <strong><KeyRound size={14} style={{ display: "inline", marginRight: 4, verticalAlign: -2 }} />如何获取 API Key</strong>
+                <strong>使用说明</strong>
                 <span>
-                  1. 访问 <a href="https://platform.deepseek.com" target="_blank" rel="noopener noreferrer" className="settingsLink">platform.deepseek.com</a> 注册账号
-                  <br />2. 在「API Keys」页面创建新 Key
-                  <br />3. 复制 Key 粘贴到下方输入框
+                  平台已内置 AI 评分能力，无需配置 API Key。
+                  <br />每日免费额度：{DAILY_AI_LIMIT} 次 AI 评分（雅思 + 职场 + 跟读共享）。
+                  <br />本地评分不限次数。
                 </span>
               </div>
 
-              <label className="settingsLabel">
-                DeepSeek API Key
-                <input
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="sk-..."
-                  type="password"
-                  autoComplete="off"
-                />
-              </label>
-
-              <label className="settingsLabel">
-                模型名称
-                <input
-                  value={modelInput}
-                  onChange={(e) => setModelInput(e.target.value)}
-                  placeholder="deepseek-chat"
-                />
-              </label>
-              <small className="helperText">
-                推荐使用 deepseek-chat (即 deepseek-v4-flash)。deepseek-reasoner 将于 2026/07/24 后改为 deepseek-v4-pro。
-              </small>
-
-              {keyTestResult && (
-                <div className={`keyTestResult ${keyTestResult.ok ? "keyTestOk" : "keyTestFail"}`}>
-                  {keyTestResult.ok ? <Check size={16} /> : <Lightbulb size={16} />}
-                  <span>{keyTestResult.message}</span>
-                </div>
-              )}
-
-              <div className="settingsActions">
-                <button className="secondaryAction" type="button" onClick={testApiKey} disabled={isTestingKey || !apiKeyInput.trim()}>
-                  {isTestingKey ? <Loader2 size={18} className="spin" /> : <Sparkles size={18} />}
-                  测试连接
-                </button>
-                <button className="primaryAction compact" type="button" onClick={saveApiKey}>
-                  <Save size={18} /> 保存
-                </button>
+              <div className="sourceNote">
+                <strong>今日用量</strong>
+                <span>
+                  已使用 {dailyAiUsed}/{DAILY_AI_LIMIT} 次 AI 评分
+                  <br />剩余 {Math.max(0, DAILY_AI_LIMIT - dailyAiUsed)} 次
+                  <br />每日 0:00 重置
+                </span>
               </div>
-
-              {userApiKey && (
-                <button className="textButton" type="button" onClick={() => { setApiKeyInput(""); setModelInput("deepseek-chat"); saveApiKey(); }} style={{ marginTop: 8 }}>
-                  清除 API Key
-                </button>
-              )}
-            </div>
-
-            <div className="sourceNote">
-              <strong>定价参考</strong>
-              <span>
-                deepseek-v4-flash：输入 1 元/百万 tokens，输出 2 元/百万 tokens
-                <br />一次雅思练习 (4 轮对话 + 评估) 约 0.01 元
-                <br />Key 仅保存在浏览器 localStorage，不会上传到服务器存储
-              </span>
             </div>
 
             <div className="sourceNote">
               <strong>隐私说明</strong>
               <span>
-                你的 API Key 存储在浏览器本地，每次请求时通过 HTTPS 传给 DeepSeek API。SpeakLoop 服务器不记录或存储你的 Key。
+                你的练习内容和评分请求通过 HTTPS 传给 AI 服务。SpeakLoop 不记录你的练习内容，仅统计使用次数。
               </span>
             </div>
+
+            <a href="/app/shadow" className="primaryAction" style={{ textDecoration: "none", marginTop: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              试试 AI 跟读练习
+            </a>
           </section>
         )}
       </div>
