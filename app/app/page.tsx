@@ -1387,24 +1387,25 @@ export default function Home() {
           <span>SpeakLoop</span>
         </div>
         <nav className="sidebarNav">
-          <button className={step === "home" ? "active" : ""} type="button" onClick={() => { setAppMode("workplace"); setStep("home"); }}>
-            <UserRound size={18} /> 首页
-          </button>
-          <button className={step === "scenario" ? "active" : ""} type="button" onClick={() => { setAppMode("workplace"); setStep("scenario"); }}>
-            <BriefcaseBusiness size={18} /> 职场口语
-          </button>
+          <a href="/" className={false ? "active" : ""}>
+            <Sparkles size={18} /> 首页
+          </a>
           <button className={step === "ielts" || step === "ielts-model" || step === "ielts-practice" || step === "ielts-assessment" ? "active" : ""} type="button" onClick={() => { setAppMode("ielts"); setStep("ielts"); }}>
             <GraduationCap size={18} /> 雅思口语
           </button>
+          <button className={step === "scenario" ? "active" : ""} type="button" onClick={() => { setAppMode("workplace"); setStep("scenario"); }}>
+            <BriefcaseBusiness size={18} /> 职场英语
+          </button>
+          <a href="/app/shadow" className={typeof window !== "undefined" && window.location.pathname.startsWith("/app/shadow") ? "active" : ""}>
+            <Mic size={18} /> AI 跟读
+          </a>
           <button className={step === "history" ? "active" : ""} type="button" onClick={() => setStep("history")}>
             <History size={18} /> 练习记录
           </button>
           <button className={step === "settings" ? "active" : ""} type="button" onClick={() => setStep("settings")}>
             <Settings size={18} /> AI 设置
           </button>
-          <a href="/app/shadow">AI 跟读</a>
           <a href="/help">帮助中心</a>
-          <a href="/">返回首页</a>
         </nav>
         <div className="sidebarFooter">
           <div className="sidebarStatus">

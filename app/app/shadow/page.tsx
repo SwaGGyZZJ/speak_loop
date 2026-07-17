@@ -4,13 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
+  BriefcaseBusiness,
   Check,
   ChevronRight,
+  GraduationCap,
+  History,
   Loader2,
   Mic,
   Pause,
   Play,
   RefreshCw,
+  Settings,
+  Sparkles,
   Volume2,
 } from "lucide-react";
 import { shadowVideos, shadowCategories, type ShadowVideo, type TranscriptSegment } from "../../../lib/shadow/videos";
@@ -182,6 +187,23 @@ export default function ShadowPage() {
 
   if (mode === "browse") {
     return (
+      <main className="app appShell">
+        <aside className="sidebar">
+          <div className="sidebarLogo">
+            <Sparkles size={20} />
+            <span>SpeakLoop</span>
+          </div>
+          <nav className="sidebarNav">
+            <a href="/"><Sparkles size={18} /> 首页</a>
+            <button type="button" onClick={() => { window.location.href = "/app"; }}><GraduationCap size={18} /> 雅思口语</button>
+            <button type="button" onClick={() => { window.location.href = "/app"; }}><BriefcaseBusiness size={18} /> 职场英语</button>
+            <a href="/app/shadow" className="active"><Mic size={18} /> AI 跟读</a>
+            <a href="/app"><History size={18} /> 练习记录</a>
+            <a href="/app"><Settings size={18} /> AI 设置</a>
+            <a href="/help">帮助中心</a>
+          </nav>
+        </aside>
+        <div className="appMain">
       <div className="shadowBrowse">
         <div className="shadowHeader">
           <a href="/app" className="backLink"><ArrowLeft size={18} /> 返回</a>
@@ -246,6 +268,8 @@ export default function ShadowPage() {
           </div>
         )}
       </div>
+        </div>
+      </main>
     );
   }
 
@@ -253,7 +277,24 @@ export default function ShadowPage() {
   const seg = video.transcript[currentSegment];
 
   return (
-    <div className="shadowPractice">
+    <main className="app appShell">
+      <aside className="sidebar">
+        <div className="sidebarLogo">
+          <Sparkles size={20} />
+          <span>SpeakLoop</span>
+        </div>
+        <nav className="sidebarNav">
+          <a href="/"><Sparkles size={18} /> 首页</a>
+          <button type="button" onClick={() => { window.location.href = "/app"; }}><GraduationCap size={18} /> 雅思口语</button>
+          <button type="button" onClick={() => { window.location.href = "/app"; }}><BriefcaseBusiness size={18} /> 职场英语</button>
+          <a href="/app/shadow" className="active"><Mic size={18} /> AI 跟读</a>
+          <a href="/app"><History size={18} /> 练习记录</a>
+          <a href="/app"><Settings size={18} /> AI 设置</a>
+          <a href="/help">帮助中心</a>
+        </nav>
+      </aside>
+      <div className="appMain">
+      <div className="shadowPractice">
       <div className="shadowHeader">
         <button className="backLink" onClick={() => setMode("browse")} type="button">
           <ArrowLeft size={18} /> 返回视频库
@@ -427,6 +468,8 @@ export default function ShadowPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+      </div>
+    </main>
   );
 }
