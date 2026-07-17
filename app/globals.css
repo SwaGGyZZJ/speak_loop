@@ -2326,6 +2326,12 @@ textarea {
   transform: rotate(-1deg);
 }
 
+.stickyCardYellow {
+  background: var(--gold-light);
+  transform: rotate(1deg);
+  cursor: pointer;
+}
+
 .stickyCardPin {
   position: absolute;
   top: -8px;
@@ -2358,6 +2364,10 @@ textarea {
 
 .stickyIconBlue {
   background: var(--blue);
+}
+
+.stickyIconYellow {
+  background: var(--gold);
 }
 
 .stickyCard h3 {
@@ -2601,7 +2611,8 @@ textarea {
   }
 
   .stickyCardOrange,
-  .stickyCardBlue {
+  .stickyCardBlue,
+  .stickyCardYellow {
     margin-top: 0 !important;
   }
 

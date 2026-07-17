@@ -217,6 +217,16 @@ export default function LandingPage() {
               <li><Check size={13} /> 全片跟读 + 逐句模式</li>
             </ul>
           </Link>
+          <div className="stickyCard stickyCardYellow" style={{ marginTop: 20 }} onClick={() => document.getElementById("suggestionSection")?.scrollIntoView({ behavior: "smooth" })} role="button" tabIndex={0}>
+            <div className="stickyCardPin" />
+            <div className="stickyIcon stickyIconYellow">
+              <Lightbulb size={28} />
+            </div>
+            <h3>我想要...</h3>
+            <p style={{ fontSize: 14, color: "var(--muted)", margin: "4px 0 0", lineHeight: 1.4 }}>
+              想练什么场景？想要什么功能？留言告诉我，点赞多的优先做。
+            </p>
+          </div>
         </div>
       </section>
 
@@ -251,7 +261,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="suggestionSection">
+      <section className="suggestionSection" id="suggestionSection">
         <h2 className="sectionTitle">
           你想练什么<span className="titleDot">·</span>告诉我
         </h2>
