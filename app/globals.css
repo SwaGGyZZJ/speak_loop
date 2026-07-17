@@ -3653,3 +3653,312 @@ textarea {
     justify-content: center;
   }
 }
+
+/* ─── Mode select home ─── */
+
+.modeSelectHero {
+  margin-bottom: 20px;
+}
+
+.modeSelectTitle {
+  font-family: var(--font-hand);
+  font-size: 36px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.modeSelectSub {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.modeSelectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.modeSelectCard {
+  display: grid;
+  gap: 8px;
+  padding: 24px 20px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  text-align: left;
+  text-decoration: none;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-spring);
+  box-shadow: var(--shadow-xs);
+}
+
+.modeSelectCard:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-sm);
+}
+
+.modeSelectCard:active {
+  transform: scale(0.98);
+}
+
+.modeSelectIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--sage-light);
+  color: var(--sage-dark);
+  margin-bottom: 4px;
+}
+
+.modeSelectIconWork {
+  background: var(--coral-light);
+  color: var(--coral-dark);
+}
+
+.modeSelectIconShadow {
+  background: var(--blue-light);
+  color: var(--blue);
+}
+
+.modeSelectIelts:hover {
+  border-color: var(--sage);
+}
+
+.modeSelectWork:hover {
+  border-color: var(--coral);
+}
+
+.modeSelectShadow:hover {
+  border-color: var(--blue);
+}
+
+.modeSelectCard strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modeSelectCard span {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.loginCollapse {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.loginCollapse summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 8px 0;
+  user-select: none;
+}
+
+.loginCollapse summary:hover {
+  color: var(--ink);
+}
+
+.loginCollapse[open] summary {
+  margin-bottom: 12px;
+}
+
+/* ─── Suggestion board ─── */
+
+.suggestionSection {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.suggestionSub {
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+  margin-bottom: 20px;
+}
+
+.suggestionTrigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 24px;
+}
+
+.suggestionForm {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border: 2px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  margin-bottom: 24px;
+}
+
+.suggestionInput {
+  height: 42px;
+  padding: 0 14px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 14px;
+  outline: none;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.suggestionInput:focus {
+  border-color: var(--coral);
+}
+
+.suggestionTextarea {
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+  min-height: 70px;
+  font-family: inherit;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.suggestionTextarea:focus {
+  border-color: var(--coral);
+}
+
+.suggestionFormActions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.suggestionList {
+  display: grid;
+  gap: 12px;
+}
+
+.suggestionEmpty {
+  text-align: center;
+  padding: 32px;
+  color: var(--muted-light);
+  font-size: 14px;
+}
+
+.suggestionCard {
+  position: relative;
+  padding: 16px 18px;
+  border-radius: 2px 2px var(--radius-sm) var(--radius-sm);
+  background: var(--gold-light);
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.suggestionCard:hover {
+  transform: translateY(-2px);
+}
+
+.suggestionCard:nth-child(odd) {
+  background: var(--paper-dark);
+}
+
+.suggestionPin {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+}
+
+.suggestionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.suggestionNick {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.suggestionScenario {
+  padding: 1px 8px;
+  border-radius: 100px;
+  background: rgba(232, 118, 92, 0.15);
+  color: var(--coral-dark);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.suggestionContent {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+}
+
+.suggestionFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suggestionTime {
+  font-size: 12px;
+  color: var(--muted-light);
+}
+
+.likeBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border: 1.5px solid var(--line);
+  border-radius: 100px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.likeBtn:hover {
+  border-color: var(--coral);
+  color: var(--coral-dark);
+}
+
+.likeBtn.liked {
+  border-color: var(--coral);
+  background: var(--coral-light);
+  color: var(--coral-dark);
+}
+
+@media (max-width: 600px) {
+  .suggestionSection {
+    padding: 30px 20px;
+  }
+
+  .suggestionFormActions {
+    flex-direction: column;
+  }
+
+  .suggestionFormActions button {
+    width: 100%;
+    justify-content: center;
+  }
+}

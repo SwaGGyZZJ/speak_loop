@@ -1441,90 +1441,61 @@ export default function Home() {
               </div>
             ) : (
               <>
-            <div className="heroPanel">
-              <div>
-                <p className="eyebrow">职场 / 远程工作口语</p>
-                <h2>练会议、汇报、面试和客户沟通，把英语说清楚、自然、专业。</h2>
-              </div>
-              <Sparkles className="heroIcon" size={44} />
-            </div>
+                <div className="modeSelectHero">
+                  <h2 className="modeSelectTitle">今天练什么？</h2>
+                  <p className="modeSelectSub">选一个模式开始练习。不用登录，直接用。</p>
+                </div>
 
-            <form className="loginPanel" onSubmit={login}>
-              <div>
-                <h3>{account ? "已登录账号" : "邮箱登录后启用记忆"}</h3>
-                <p>{account ? `${account.email}` : "游客可以体验；邮箱登录后按 user_id 隔离保存 profile、历史和 memory。"}</p>
-              </div>
-                <div className={supabaseBrowserConfig() ? "loginRow withPassword" : "loginRow"}>
-                <input
-                  value={loginInput}
-                  onChange={(event) => setLoginInput(event.target.value)}
-                  placeholder="email@example.com"
-                  type="email"
-                />
-                {supabaseBrowserConfig() && (
-                  <input
-                    value={passwordInput}
-                    onChange={(event) => setPasswordInput(event.target.value)}
-                    placeholder="password"
-                    type="password"
-                    minLength={6}
-                  />
+                <div className="modeSelectGrid">
+                  <button className="modeSelectCard modeSelectIelts" type="button" onClick={() => { setAppMode("ielts"); setStep("ielts"); }}>
+                    <div className="modeSelectIcon"><GraduationCap size={28} /></div>
+                    <strong>雅思口语</strong>
+                    <span>Part 1/2/3 真题 · Band 评分</span>
+                  </button>
+                  <button className="modeSelectCard modeSelectWork" type="button" onClick={() => { setAppMode("workplace"); setStep("scenario"); }}>
+                    <div className="modeSelectIcon modeSelectIconWork"><BriefcaseBusiness size={28} /></div>
+                    <strong>职场英语</strong>
+                    <span>会议 · 汇报 · 面试 · 客户</span>
+                  </button>
+                  <a href="/app/shadow" className="modeSelectCard modeSelectShadow">
+                    <div className="modeSelectIcon modeSelectIconShadow"><Mic size={28} /></div>
+                    <strong>AI 跟读</strong>
+                    <span>看视频 · 逐句跟读 · 学单词</span>
+                  </a>
+                </div>
+
+                {account && (
+                  <div className="sourceNote">
+                    <strong><Lightbulb size={14} style={{ display: "inline", marginRight: 4, verticalAlign: -2 }} />下次推荐：{recommendedTask.title}</strong>
+                    <span>{memory?.recommendedReason ?? "完成一次练习后，系统会根据你的弱项推荐下一次任务。"}</span>
+                    <button className="textButton" type="button" onClick={() => chooseTask(recommendedTask)}>
+                      练推荐任务
+                    </button>
+                  </div>
                 )}
-                <button type="submit">
-                  <LogIn size={18} />
-                </button>
-              </div>
-              {supabaseBrowserConfig() && !account && <small className="helperText">云端模式：用邮箱 + 密码注册/登录，跨设备恢复历史和记忆。</small>}
-              <button className="secondaryAction compact" type="button" disabled title="WeChat login will be enabled for domestic commercial launch">
-                微信登录暂未开放
-              </button>
-              {account && (
-                <div className="actionRow">
-                  <button className="textButton" type="button" onClick={logout}>
-                    退出当前账号
-                  </button>
-                  <button className="textButton" type="button" onClick={deleteAccount}>
-                    删除账号数据
-                  </button>
-                </div>
-              )}
-            </form>
 
-            {account && (
-              <div className="sourceNote">
-                <strong><Lightbulb size={14} style={{ display: "inline", marginRight: 4, verticalAlign: -2 }} />下次推荐：{recommendedTask.title}</strong>
-                <span>{memory?.recommendedReason ?? "完成一次练习后，系统会根据你的弱项推荐下一次任务。"}</span>
-                <button className="textButton" type="button" onClick={() => chooseTask(recommendedTask)}>
-                  练推荐任务
-                </button>
-              </div>
-            )}
-
-                <div className="quickGrid">
-                  <button type="button" onClick={() => setStep("profile")}>
-                    <UserRound size={21} />
-                    <span>工作档案</span>
-                    <small>{profile.currentRole} · {profile.targetRole}</small>
-                  </button>
-                  <button type="button" onClick={() => { setAppMode("workplace"); setStep("scenario"); }}>
-                    <BriefcaseBusiness size={21} />
-                    <span>职场口语</span>
-                    <small>会议 / 汇报 / 面试 / 客户沟通</small>
-                  </button>
-                </div>
-
-                <div className="ieltsEntryCard" >
-                  <div className="ieltsEntryIcon">
-                    <GraduationCap size={28} />
-                  </div>
-                  <div>
-                    <strong>IELTS 雅思口语</strong>
-                    <p>Part 1/2/3 真题题库 + 各分数量级标准回答 + 智能评分</p>
-                  </div>
-                  <button className="primaryAction compact" type="button" onClick={() => { setAppMode("ielts"); setStep("ielts"); }}>
-                    <ChevronRight size={18} />
-                  </button>
-                </div>
+                <details className="loginCollapse">
+                  <summary>账号登录（保存历史和记忆）</summary>
+                  <form className="loginPanel" onSubmit={login}>
+                    <div>
+                      <h3>{account ? "已登录账号" : "邮箱登录"}</h3>
+                      <p>{account ? `${account.email}` : "登录后按 user_id 隔离保存 profile、历史和 memory。"}</p>
+                    </div>
+                    <div className={supabaseBrowserConfig() ? "loginRow withPassword" : "loginRow"}>
+                      <input value={loginInput} onChange={(event) => setLoginInput(event.target.value)} placeholder="email@example.com" type="email" />
+                      {supabaseBrowserConfig() && (
+                        <input value={passwordInput} onChange={(event) => setPasswordInput(event.target.value)} placeholder="password" type="password" minLength={6} />
+                      )}
+                      <button type="submit"><LogIn size={18} /></button>
+                    </div>
+                    {account && (
+                      <div className="actionRow">
+                        <button className="textButton" type="button" onClick={logout}>退出当前账号</button>
+                        <button className="textButton" type="button" onClick={deleteAccount}>删除账号数据</button>
+                      </div>
+                    )}
+                  </form>
+                </details>
               </>
             )}
           </section>

@@ -4,15 +4,102 @@ import {
   ArrowRight,
   Check,
   GraduationCap,
+  Heart,
+  Lightbulb,
+  Loader2,
   Mic,
   PenTool,
   BookOpen,
+  Send,
   TrendingUp,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+type Suggestion = {
+  id: string;
+  nickname: string;
+  content: string;
+  scenario: string;
+  createdAt: string;
+  likes: number;
+};
 
 export default function LandingPage() {
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [nickname, setNickname] = useState("");
+  const [content, setContent] = useState("");
+  const [scenario, setScenario] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/suggestions")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.suggestions) setSuggestions(d.suggestions);
+      })
+      .catch(() => {});
+
+    const liked = localStorage.getItem("speakloop:likedSuggestions");
+    if (liked) {
+      try { setLikedIds(new Set(JSON.parse(liked))); } catch {}
+    }
+  }, []);
+
+  async function submitSuggestion() {
+    if (!content.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add",
+          nickname: nickname.trim() || "匿名用户",
+          content: content.trim(),
+          scenario: scenario.trim() || "其他",
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && data.suggestion) {
+        setSuggestions((prev) => [data.suggestion, ...prev]);
+        setContent("");
+        setScenario("");
+        setShowForm(false);
+      }
+    } catch {}
+    setIsSubmitting(false);
+  }
+
+  async function toggleLike(sug: Suggestion) {
+    const alreadyLiked = likedIds.has(sug.id);
+    const newLiked = new Set(likedIds);
+    if (alreadyLiked) {
+      newLiked.delete(sug.id);
+    } else {
+      newLiked.add(sug.id);
+    }
+    setLikedIds(newLiked);
+    localStorage.setItem("speakloop:likedSuggestions", JSON.stringify([...newLiked]));
+
+    setSuggestions((prev) =>
+      prev.map((s) =>
+        s.id === sug.id ? { ...s, likes: alreadyLiked ? Math.max(0, s.likes - 1) : s.likes + 1 } : s
+      )
+    );
+
+    try {
+      await fetch("/api/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "like", id: sug.id, alreadyLiked }),
+      });
+    } catch {}
+  }
+
   return (
     <main className="landing">
       <nav className="landingNav">
@@ -164,6 +251,84 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <section className="suggestionSection">
+        <h2 className="sectionTitle">
+          你想练什么<span className="titleDot">·</span>告诉我
+        </h2>
+        <p className="suggestionSub">想练的场景、想要的练习形式、想加的功能，留言告诉我。点赞多的优先做。</p>
+
+        {!showForm && (
+          <button className="btnPrimary btnSmall suggestionTrigger" type="button" onClick={() => setShowForm(true)}>
+            <Lightbulb size={16} /> 我有个想法
+          </button>
+        )}
+
+        {showForm && (
+          <div className="suggestionForm">
+            <input
+              className="suggestionInput"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="昵称（选填）"
+              maxLength={30}
+            />
+            <input
+              className="suggestionInput"
+              value={scenario}
+              onChange={(e) => setScenario(e.target.value)}
+              placeholder="场景标签，如：点餐/面试/旅行/自由对话..."
+              maxLength={50}
+            />
+            <textarea
+              className="suggestionTextarea"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="说说你想练什么，想要什么样的练习形式..."
+              maxLength={500}
+              rows={3}
+            />
+            <div className="suggestionFormActions">
+              <button className="btnGhost btnSmall" type="button" onClick={() => setShowForm(false)}>
+                取消
+              </button>
+              <button className="btnPrimary btnSmall" type="button" onClick={submitSuggestion} disabled={isSubmitting || !content.trim()}>
+                {isSubmitting ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+                提交
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="suggestionList">
+          {suggestions.length === 0 && (
+            <div className="suggestionEmpty">
+              还没有留言，来第一个吧
+            </div>
+          )}
+          {suggestions.map((sug) => (
+            <div key={sug.id} className="suggestionCard">
+              <div className="suggestionPin" />
+              <div className="suggestionHeader">
+                <span className="suggestionNick">{sug.nickname}</span>
+                <span className="suggestionScenario">{sug.scenario}</span>
+              </div>
+              <p className="suggestionContent">{sug.content}</p>
+              <div className="suggestionFooter">
+                <span className="suggestionTime">{timeAgo(sug.createdAt)}</span>
+                <button
+                  className={`likeBtn ${likedIds.has(sug.id) ? "liked" : ""}`}
+                  type="button"
+                  onClick={() => toggleLike(sug)}
+                >
+                  <Heart size={14} fill={likedIds.has(sug.id) ? "currentColor" : "none"} />
+                  {sug.likes}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="pricingSection">
         <h2 className="sectionTitle">
           定价<span className="titleDot">·</span>不绕弯
@@ -214,4 +379,16 @@ function GradeMark({ label, color }: { label: string; color: string }) {
       {label}
     </div>
   );
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return "刚刚";
+  if (min < 60) return `${min} 分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} 小时前`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} 天前`;
+  return new Date(iso).toLocaleDateString();
 }
