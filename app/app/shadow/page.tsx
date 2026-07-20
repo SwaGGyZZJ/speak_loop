@@ -9,19 +9,30 @@ import {
   ChevronRight,
   GraduationCap,
   History,
+  Lightbulb,
   Loader2,
   Mic,
   Pause,
   Play,
   RefreshCw,
+  Search,
   Settings,
   Sparkles,
   Volume2,
+  Wand2,
 } from "lucide-react";
 import { shadowVideos, shadowCategories, type ShadowVideo, type TranscriptSegment } from "../../../lib/shadow/videos";
 
 type ShadowMode = "browse" | "practice";
 type PracticeMode = "sentence" | "full";
+
+type SearchResult = {
+  videoId: string;
+  title: string;
+  channel: string;
+  thumbnail: string;
+  duration: string;
+};
 
 export default function ShadowPage() {
   const [mode, setMode] = useState<ShadowMode>("browse");
@@ -37,6 +48,13 @@ export default function ShadowPage() {
   const [savedVocab, setSavedVocab] = useState<{ word: string; meaning: string; videoTitle: string }[]>([]);
   const [usageRemaining, setUsageRemaining] = useState(5);
   const [userId, setUserId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
+  const [preparingVideoId, setPreparingVideoId] = useState<string | null>(null);
+  const [customVideos, setCustomVideos] = useState<ShadowVideo[]>([]);
 
   const playerRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -58,6 +76,11 @@ export default function ShadowPage() {
     const saved = localStorage.getItem("speakloop:shadowVocab");
     if (saved) {
       try { setSavedVocab(JSON.parse(saved)); } catch {}
+    }
+
+    const customSaved = localStorage.getItem("speakloop:customVideos");
+    if (customSaved) {
+      try { setCustomVideos(JSON.parse(customSaved)); } catch {}
     }
 
     const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -82,6 +105,58 @@ export default function ShadowPage() {
     setSelectedVideo(video);
     setCurrentSegment(0);
     setMode("practice");
+  }
+
+  async function searchYouTube() {
+    const q = searchQuery.trim();
+    if (!q) return;
+    setIsSearching(true);
+    setSearchError("");
+    setSearchResults([]);
+    try {
+      const res = await fetch("/api/youtube-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "search", query: q }),
+      });
+      const data = await res.json();
+      if (data.ok && data.results) {
+        setSearchResults(data.results);
+      } else {
+        setSearchError(data.message || "搜索失败，请重试。");
+      }
+    } catch {
+      setSearchError("网络错误，无法搜索。");
+    }
+    setIsSearching(false);
+  }
+
+  async function prepareVideo(result: SearchResult) {
+    setPreparingVideoId(result.videoId);
+    try {
+      const res = await fetch("/api/youtube-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "prepare",
+          videoId: result.videoId,
+          title: result.title,
+          channel: result.channel,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok && data.video) {
+        const updated = [data.video, ...customVideos];
+        setCustomVideos(updated);
+        localStorage.setItem("speakloop:customVideos", JSON.stringify(updated));
+        startPractice(data.video);
+      } else {
+        setSearchError(data.message || "无法生成跟读模板。");
+      }
+    } catch {
+      setSearchError("网络错误，无法生成模板。");
+    }
+    setPreparingVideoId(null);
   }
 
   function getYouTubeId(url: string): string {
@@ -215,6 +290,85 @@ export default function ShadowPage() {
 
         <p className="shadowIntro">看视频，听旁白，逐句跟读，AI 对比评分。在真实场景中学单词。</p>
 
+        <div className="customSearchBox">
+          <div className="searchRow">
+            <input
+              className="searchInput"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") searchYouTube(); }}
+              placeholder="搜 YouTube 视频，如：restaurant English conversation, job interview practice..."
+            />
+            <button className="searchBtn" type="button" onClick={searchYouTube} disabled={isSearching}>
+              {isSearching ? <Loader2 size={18} className="spin" /> : <Search size={18} />}
+            </button>
+          </div>
+          <button className="searchToggle" type="button" onClick={() => { setShowSearch(!showSearch); if (!showSearch) searchYouTube(); }}>
+            <Wand2 size={14} /> {showSearch ? "收起搜索结果" : "搜你想要的视频"}
+          </button>
+        </div>
+
+        {showSearch && searchError && (
+          <div className="searchError">{searchError}</div>
+        )}
+
+        {showSearch && searchResults.length > 0 && (
+          <div className="searchResultsSection">
+            <h3 className="searchResultsTitle">搜索结果（点击「生成跟读模板」）</h3>
+            <div className="searchResultsList">
+              {searchResults.map((result) => (
+                <div key={result.videoId} className="searchResultCard">
+                  <div className="searchResultThumb">
+                    <img src={result.thumbnail} alt={result.title} loading="lazy" />
+                    {result.duration && <span className="videoDuration">{result.duration}</span>}
+                  </div>
+                  <div className="searchResultInfo">
+                    <strong>{result.title}</strong>
+                    <span className="searchResultChannel">{result.channel}</span>
+                  </div>
+                  <button
+                    className="prepareBtn"
+                    type="button"
+                    onClick={() => prepareVideo(result)}
+                    disabled={preparingVideoId === result.videoId}
+                  >
+                    {preparingVideoId === result.videoId ? (
+                      <><Loader2 size={14} className="spin" /> 生成中...</>
+                    ) : (
+                      <><Wand2 size={14} /> 生成跟读模板</>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {customVideos.length > 0 && (
+          <div className="customVideosSection">
+            <h3 className="customVideosTitle"><Sparkles size={16} /> 我的跟读视频</h3>
+            <div className="videoGrid">
+              {customVideos.map((video) => (
+                <div key={video.id} className="videoCard" onClick={() => startPractice(video)} role="button" tabIndex={0}>
+                  <div className="videoThumb">
+                    <img src={`https://img.youtube.com/vi/${getYouTubeId(video.url)}/mqdefault.jpg`} alt={video.title} loading="lazy" />
+                    <span className="videoDuration">{video.duration}</span>
+                  </div>
+                  <div className="videoInfo">
+                    <div className="videoMeta">
+                      <span className="videoLevel">{video.level}</span>
+                      <span className="videoCat">自定义</span>
+                    </div>
+                    <strong>{video.title}</strong>
+                    <p className="videoDesc">{video.transcript.length} 句 · AI 已标注生词</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <h3 className="libraryTitle">精选视频库</h3>
         <div className="segmented" style={{ overflowX: "auto" }}>
           {shadowCategories.map((c) => (
             <button
