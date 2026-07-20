@@ -11,14 +11,14 @@ type SearchResult = {
 
 async function searchYouTube(query: string): Promise<SearchResult[]> {
   const encoded = encodeURIComponent(query);
-  const url = `https://www.youtube.com/results?search_query=${encoded}&sp=EgIQAQ%253D%253D`;
+  const url = `https://www.youtube.com/results?search_query=${encoded}`;
 
   const response = await fetch(url, {
     headers: {
       "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
       "Accept-Language": "en-US,en;q=0.9",
-      Accept: "text/html,application/xhtml+xml",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     },
     redirect: "follow",
   });
@@ -28,54 +28,62 @@ async function searchYouTube(query: string): Promise<SearchResult[]> {
   }
 
   const html = await response.text();
+  const videoIds = new Set<string>();
   const results: SearchResult[] = [];
 
-  const patterns = [
-    /"videoRenderer":\{"videoId":"([^"]+)"[^}]*?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"[^}]*?\][^}]*?"ownerText"?:?\{?"runs"?:?\[?\{?"text"?:?"((?:[^"\\]|\\.)*)"/g,
-    /"videoId":"([^"]{11})"[^}]*?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/g,
-    /watch\?v=([^"&]{11})[^"]*"[^}]*"title":\{"simpleText":"((?:[^"\\]|\\.)*)"/g,
-  ];
-
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(html)) !== null) {
-      const videoId = match[1];
-      const title = (match[2] || "").replace(/\\u0026/g, "&").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
-      const channel = (match[3] || "Unknown").replace(/\\u0026/g, "&").replace(/\\"/g, '"');
-
-      if (videoId && videoId.length === 11 && !results.find((r) => r.videoId === videoId)) {
-        results.push({
-          videoId,
-          title: title || "Untitled",
-          channel,
-          thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-          duration: "",
-        });
-      }
-      if (results.length >= 12) break;
+  const idRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
+  let match;
+  while ((match = idRegex.exec(html)) !== null) {
+    const id = match[1];
+    if (!videoIds.has(id)) {
+      videoIds.add(id);
     }
-    if (results.length >= 12) break;
   }
 
-  if (results.length === 0) {
-    const simpleMatches = html.match(/watch\?v=([a-zA-Z0-9_-]{11})/g);
-    if (simpleMatches) {
-      const seen = new Set<string>();
-      for (const m of simpleMatches) {
-        const id = m.replace("watch?v=", "");
-        if (!seen.has(id) && id.length === 11) {
-          seen.add(id);
-          results.push({
-            videoId: id,
-            title: "YouTube Video",
-            channel: "Unknown",
-            thumbnail: `https://img.youtube.com/vi/${id}/mqdefault.jpg`,
-            duration: "",
-          });
-        }
-        if (results.length >= 12) break;
-      }
+  const simpleRegex = /watch\?v=([a-zA-Z0-9_-]{11})/g;
+  while ((match = simpleRegex.exec(html)) !== null) {
+    const id = match[1];
+    if (!videoIds.has(id)) {
+      videoIds.add(id);
     }
+  }
+
+  for (const videoId of videoIds) {
+    if (results.length >= 10) break;
+
+    let title = "YouTube Video";
+    let channel = "Unknown";
+
+    const titleRegex = new RegExp(`"videoId":"${videoId}"[^}]*?"title":\\{"runs":\\[\\{"text":"((?:[^"\\\\]|\\\\.)*)"`, "s");
+    const titleMatch = html.match(titleRegex);
+    if (titleMatch) {
+      title = titleMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    }
+
+    const channelRegex = new RegExp(`"videoId":"${videoId}"[^}]*?"ownerText":\\{"runs":\\[\\{"text":"((?:[^"\\\\]|\\\\.)*)"`, "s");
+    const channelMatch = html.match(channelRegex);
+    if (channelMatch) {
+      channel = channelMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
+    }
+
+    if (title === "YouTube Video" && channel === "Unknown") {
+      try {
+        const oembedRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+        if (oembedRes.ok) {
+          const oembedData = await oembedRes.json();
+          if (oembedData.title) title = oembedData.title;
+          if (oembedData.author_name) channel = oembedData.author_name;
+        }
+      } catch {}
+    }
+
+    results.push({
+      videoId,
+      title,
+      channel,
+      thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+      duration: "",
+    });
   }
 
   return results;
@@ -83,7 +91,7 @@ async function searchYouTube(query: string): Promise<SearchResult[]> {
 
 async function getVideoInfo(videoId: string): Promise<{ title: string; channel: string } | null> {
   try {
-    const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+    const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
     if (response.ok) {
       const data = await response.json();
       return { title: data.title || "YouTube Video", channel: data.author_name || "Unknown" };
@@ -111,53 +119,23 @@ async function fetchTranscript(videoId: string): Promise<RawTranscriptItem[]> {
   }
 
   try {
-    const fallbackUrl = `https://video.google.com/timedtext?lang=en&v=${videoId}`;
-    const response = await fetch(fallbackUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
-    if (response.ok) {
-      const xml = await response.text();
-      const items: RawTranscriptItem[] = [];
-      const regex = /<text start="([\d.]+)" dur="([\d.]+)"[^>]*>(.*?)<\/text>/g;
-      let match;
-      while ((match = regex.exec(xml)) !== null) {
-        const text = match[3]
-          .replace(/&amp;/g, "&")
-          .replace(/&#39;/g, "'")
-          .replace(/&quot;/g, '"')
-          .replace(/&lt;/g, "<")
-          .replace(/&gt;/g, ">")
-          .replace(/<[^>]+>/g, "")
-          .trim();
-        if (text) {
-          items.push({
-            text,
-            duration: parseFloat(match[2]) || 0,
-            offset: parseFloat(match[1]) || 0,
-          });
-        }
-      }
-      if (items.length > 0) return items;
-    }
-  } catch (err) {
-    console.error("[youtube-search] timedtext fallback failed:", String(err).slice(0, 200));
-  }
-
-  try {
     const response = await fetch(`https://www.youtube.com/api/timedtext?lang=en&v=${videoId}&fmt=json3`, {
       headers: { "User-Agent": "Mozilla/5.0" },
     });
     if (response.ok) {
-      const data = await response.json();
-      const items: RawTranscriptItem[] = (data.events || [])
-        .filter((e: any) => e.segs)
-        .map((e: any) => ({
-          text: e.segs.map((s: any) => s.utf8 || "").join("").trim(),
-          duration: (e.dDurationMs || 0) / 1000,
-          offset: (e.tStartMs || 0) / 1000,
-        }))
-        .filter((item: RawTranscriptItem) => item.text);
-      if (items.length > 0) return items;
+      const text = await response.text();
+      if (text) {
+        const data = JSON.parse(text);
+        const items: RawTranscriptItem[] = (data.events || [])
+          .filter((e: any) => e.segs)
+          .map((e: any) => ({
+            text: e.segs.map((s: any) => s.utf8 || "").join("").trim(),
+            duration: (e.dDurationMs || 0) / 1000,
+            offset: (e.tStartMs || 0) / 1000,
+          }))
+          .filter((item: RawTranscriptItem) => item.text);
+        if (items.length > 0) return items;
+      }
     }
   } catch (err) {
     console.error("[youtube-search] json3 fallback failed:", String(err).slice(0, 200));
@@ -339,7 +317,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         ok: false,
         error: "no_transcript",
-        message: "无法获取字幕。这个视频可能没有英文字幕，或字幕被禁用。试试其他视频，或搜索带 'English subtitles' 的视频。",
+        message: "无法获取字幕。这个视频可能没有英文字幕，或字幕被禁用。试试搜索带 'English subtitles' 的视频，或直接粘贴一个有英文字幕的视频链接。",
       });
     }
 

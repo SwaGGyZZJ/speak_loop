@@ -113,6 +113,7 @@ export default function ShadowPage() {
     setIsSearching(true);
     setSearchError("");
     setSearchResults([]);
+    setShowSearch(true);
     try {
       const res = await fetch("/api/youtube-search", {
         method: "POST",
@@ -123,10 +124,10 @@ export default function ShadowPage() {
       if (data.ok && data.results) {
         setSearchResults(data.results);
       } else {
-        setSearchError(data.message || "搜索失败，请重试。");
+        setSearchError(data.message || "搜索失败，请重试。你也可以直接粘贴 YouTube 视频链接。");
       }
     } catch {
-      setSearchError("网络错误，无法搜索。");
+      setSearchError("网络错误，无法搜索。你也可以直接粘贴 YouTube 视频链接到搜索框。");
     }
     setIsSearching(false);
   }
@@ -312,7 +313,7 @@ export default function ShadowPage() {
               {isSearching ? <Loader2 size={18} className="spin" /> : <Search size={18} />}
             </button>
           </div>
-          <button className="searchToggle" type="button" onClick={() => { setShowSearch(!showSearch); if (!showSearch) searchYouTube(); }}>
+          <button className="searchToggle" type="button" onClick={() => setShowSearch(!showSearch)}>
             <Wand2 size={14} /> {showSearch ? "收起搜索结果" : "搜你想要的视频"}
           </button>
         </div>
