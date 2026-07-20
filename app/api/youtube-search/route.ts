@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { YoutubeTranscript } from "youtube-transcript";
 
 type SearchResult = {
   videoId: string;
@@ -9,18 +8,30 @@ type SearchResult = {
   duration: string;
 };
 
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(timeout);
+    return res;
+  } catch (err) {
+    clearTimeout(timeout);
+    throw err;
+  }
+}
+
 async function searchYouTube(query: string): Promise<SearchResult[]> {
   const encoded = encodeURIComponent(query);
   const url = `https://www.youtube.com/results?search_query=${encoded}`;
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
       "Accept-Language": "en-US,en;q=0.9",
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      Accept: "text/html,application/xhtml+xml",
     },
-    redirect: "follow",
   });
 
   if (!response.ok) {
@@ -29,35 +40,29 @@ async function searchYouTube(query: string): Promise<SearchResult[]> {
 
   const html = await response.text();
   const videoIds = new Set<string>();
-  const results: SearchResult[] = [];
 
   const idRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
   let match;
   while ((match = idRegex.exec(html)) !== null) {
-    const id = match[1];
-    if (!videoIds.has(id)) {
-      videoIds.add(id);
-    }
+    videoIds.add(match[1]);
   }
 
   const simpleRegex = /watch\?v=([a-zA-Z0-9_-]{11})/g;
   while ((match = simpleRegex.exec(html)) !== null) {
-    const id = match[1];
-    if (!videoIds.has(id)) {
-      videoIds.add(id);
-    }
+    videoIds.add(match[1]);
   }
 
-  for (const videoId of videoIds) {
-    if (results.length >= 10) break;
+  const results: SearchResult[] = [];
+  const idArray = [...videoIds].slice(0, 8);
 
+  for (const videoId of idArray) {
     let title = "YouTube Video";
     let channel = "Unknown";
 
     const titleRegex = new RegExp(`"videoId":"${videoId}"[^}]*?"title":\\{"runs":\\[\\{"text":"((?:[^"\\\\]|\\\\.)*)"`, "s");
     const titleMatch = html.match(titleRegex);
     if (titleMatch) {
-      title = titleMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      title = titleMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
     }
 
     const channelRegex = new RegExp(`"videoId":"${videoId}"[^}]*?"ownerText":\\{"runs":\\[\\{"text":"((?:[^"\\\\]|\\\\.)*)"`, "s");
@@ -66,9 +71,9 @@ async function searchYouTube(query: string): Promise<SearchResult[]> {
       channel = channelMatch[1].replace(/\\u0026/g, "&").replace(/\\"/g, '"');
     }
 
-    if (title === "YouTube Video" && channel === "Unknown") {
+    if (title === "YouTube Video") {
       try {
-        const oembedRes = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+        const oembedRes = await fetchWithTimeout(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`, {}, 3000);
         if (oembedRes.ok) {
           const oembedData = await oembedRes.json();
           if (oembedData.title) title = oembedData.title;
@@ -91,7 +96,7 @@ async function searchYouTube(query: string): Promise<SearchResult[]> {
 
 async function getVideoInfo(videoId: string): Promise<{ title: string; channel: string } | null> {
   try {
-    const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`);
+    const response = await fetchWithTimeout(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`, {}, 5000);
     if (response.ok) {
       const data = await response.json();
       return { title: data.title || "YouTube Video", channel: data.author_name || "Unknown" };
@@ -106,8 +111,81 @@ type RawTranscriptItem = {
   offset: number;
 };
 
-async function fetchTranscript(videoId: string): Promise<RawTranscriptItem[]> {
+async function fetchTranscriptFromYouTube(videoId: string): Promise<RawTranscriptItem[]> {
   try {
+    const response = await fetchWithTimeout(
+      `https://www.youtube.com/watch?v=${videoId}`,
+      {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      },
+      8000
+    );
+
+    if (!response.ok) return [];
+    const html = await response.text();
+
+    const captionConfigMatch = html.match(/"captionTracks":(\[.*?\])/);
+    if (!captionConfigMatch) return [];
+
+    let captionTracks;
+    try {
+      captionTracks = JSON.parse(captionConfigMatch[1]);
+    } catch {
+      return [];
+    }
+
+    const englishTrack = captionTracks.find((t: any) =>
+      t.languageCode === "en" || t.languageCode === "en-US" || t.languageCode === "en-GB"
+    ) || captionTracks[0];
+
+    if (!englishTrack?.baseUrl) return [];
+
+    const transcriptRes = await fetchWithTimeout(englishTrack.baseUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    }, 8000);
+
+    if (!transcriptRes.ok) return [];
+    const xml = await transcriptRes.text();
+
+    const items: RawTranscriptItem[] = [];
+    const regex = /<text start="([\d.]+)" dur="([\d.]+)"[^>]*>(.*?)<\/text>/g;
+    let match;
+    while ((match = regex.exec(xml)) !== null) {
+      const text = match[3]
+        .replace(/&amp;amp;/g, "&")
+        .replace(/&amp;#39;/g, "'")
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;quot;/g, '"')
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;lt;/g, "<")
+        .replace(/&lt;/g, "<")
+        .replace(/&amp;gt;/g, ">")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .replace(/<[^>]+>/g, "")
+        .trim();
+      if (text) {
+        items.push({
+          text,
+          duration: parseFloat(match[2]) || 0,
+          offset: parseFloat(match[1]) || 0,
+        });
+      }
+    }
+
+    return items;
+  } catch (err) {
+    console.error("[youtube-search] transcript fetch failed:", String(err).slice(0, 200));
+    return [];
+  }
+}
+
+async function fetchTranscriptFromLibrary(videoId: string): Promise<RawTranscriptItem[]> {
+  try {
+    const { YoutubeTranscript } = await import("youtube-transcript");
     const transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: "en" });
     return transcript.map((item: any) => ({
       text: item.text || "",
@@ -115,33 +193,16 @@ async function fetchTranscript(videoId: string): Promise<RawTranscriptItem[]> {
       offset: item.offset || 0,
     }));
   } catch (err) {
-    console.error("[youtube-search] youtube-transcript failed:", String(err).slice(0, 200));
+    console.error("[youtube-search] library fetch failed:", String(err).slice(0, 200));
+    return [];
   }
+}
 
-  try {
-    const response = await fetch(`https://www.youtube.com/api/timedtext?lang=en&v=${videoId}&fmt=json3`, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
-    if (response.ok) {
-      const text = await response.text();
-      if (text) {
-        const data = JSON.parse(text);
-        const items: RawTranscriptItem[] = (data.events || [])
-          .filter((e: any) => e.segs)
-          .map((e: any) => ({
-            text: e.segs.map((s: any) => s.utf8 || "").join("").trim(),
-            duration: (e.dDurationMs || 0) / 1000,
-            offset: (e.tStartMs || 0) / 1000,
-          }))
-          .filter((item: RawTranscriptItem) => item.text);
-        if (items.length > 0) return items;
-      }
-    }
-  } catch (err) {
-    console.error("[youtube-search] json3 fallback failed:", String(err).slice(0, 200));
-  }
+async function fetchTranscript(videoId: string): Promise<RawTranscriptItem[]> {
+  const items = await fetchTranscriptFromYouTube(videoId);
+  if (items.length > 0) return items;
 
-  return [];
+  return await fetchTranscriptFromLibrary(videoId);
 }
 
 function mergeTranscriptItems(items: RawTranscriptItem[]): { text: string; start: number; duration: number }[] {
@@ -189,56 +250,14 @@ function assessSuitability(transcript: { text: string; start: number; duration: 
   return { suitable: true, reason: `适合跟读！约 ${wordCount} 词，${transcript.length} 句，预估水平 ${level}。`, level };
 }
 
-async function generateVocabWithAI(segments: { text: string }[]) {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) return null;
-
-  const sentences = segments.slice(0, 15).map((s, i) => `${i + 1}. ${s.text}`).join("\n");
-
-  try {
-    const response = await fetch("https://api.deepseek.com/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content: "You are an English learning assistant. Return strict JSON only. For each sentence, extract 0-2 key vocabulary words worth learning.",
-          },
-          {
-            role: "user",
-            content: `Extract vocabulary from these sentences. For each sentence number, list key words with meaning (in Chinese) and phonetic transcription.
-
-Sentences:
-${sentences}
-
-Return JSON:
-{
-  "vocab": {
-    "1": [{"word": "...", "meaning": "中文释义", "phonetic": "/.../"}],
-    "2": [...],
-    ...
-  }
-}`,
-          },
-        ],
-      }),
-    });
-
-    if (!response.ok) return null;
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) return null;
-    return JSON.parse(content);
-  } catch {
-    return null;
-  }
+function extractVocabSimple(text: string): { word: string; meaning: string; phonetic: string }[] {
+  const words = text.split(/\s+/).filter((w) => w.length > 6 && /^[a-zA-Z]+$/.test(w));
+  const unique = [...new Set(words)].slice(0, 2);
+  return unique.map((word) => ({
+    word,
+    meaning: "",
+    phonetic: "",
+  }));
 }
 
 function extractVideoId(input: string): string | null {
@@ -252,6 +271,8 @@ function extractVideoId(input: string): string | null {
   }
   return null;
 }
+
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -308,7 +329,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "no_video_id" });
     }
 
-    console.log(`[youtube-search] prepare: videoId=${videoId}, title=${title}`);
+    console.log(`[youtube-search] prepare: videoId=${videoId}`);
 
     const rawTranscript = await fetchTranscript(videoId);
     console.log(`[youtube-search] transcript items: ${rawTranscript.length}`);
@@ -317,7 +338,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         ok: false,
         error: "no_transcript",
-        message: "无法获取字幕。这个视频可能没有英文字幕，或字幕被禁用。试试搜索带 'English subtitles' 的视频，或直接粘贴一个有英文字幕的视频链接。",
+        message: "无法获取字幕。这个视频可能没有英文字幕，或字幕被禁用。请确认视频有 CC 字幕标识。",
       });
     }
 
@@ -329,20 +350,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "not_suitable", message: suitability.reason });
     }
 
-    let vocabMap: Record<string, any[]> | null = null;
-    try {
-      const aiResult = await generateVocabWithAI(merged);
-      if (aiResult?.vocab) {
-        vocabMap = aiResult.vocab;
-      }
-    } catch {}
-
     const segments = merged.map((item, index) => ({
       id: index,
       start: Math.floor(item.start),
       duration: Math.ceil(item.duration),
       text: item.text,
-      vocab: vocabMap?.[String(index + 1)] || [],
+      vocab: extractVocabSimple(item.text),
     }));
 
     return NextResponse.json({
@@ -357,7 +370,7 @@ export async function POST(request: NextRequest) {
         source: "youtube" as const,
         url: `https://www.youtube.com/watch?v=${videoId}`,
         duration: `${Math.ceil(segments[segments.length - 1].start / 60)}:${String(Math.ceil(segments[segments.length - 1].start % 60)).padStart(2, "0")}`,
-        description: `来自 ${channel} 的 YouTube 视频`,
+        description: `来自 ${channel} · AI 已分段标注`,
         transcript: segments,
       },
       suitability: suitability.reason,
