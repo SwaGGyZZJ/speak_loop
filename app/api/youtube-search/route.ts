@@ -10,14 +10,17 @@ type SearchResult = {
 };
 
 async function searchYouTube(query: string): Promise<SearchResult[]> {
-  const encoded = encodeURIComponent(query + " english conversation with subtitles");
-  const url = `https://www.youtube.com/results?search_query=${encoded}`;
+  const encoded = encodeURIComponent(query);
+  const url = `https://www.youtube.com/results?search_query=${encoded}&sp=EgIQAQ%253D%253D`;
 
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
       "Accept-Language": "en-US,en;q=0.9",
+      Accept: "text/html,application/xhtml+xml",
     },
+    redirect: "follow",
   });
 
   if (!response.ok) {
@@ -27,24 +30,66 @@ async function searchYouTube(query: string): Promise<SearchResult[]> {
   const html = await response.text();
   const results: SearchResult[] = [];
 
-  const videoRegex = /"videoRenderer":\{"videoId":"([^"]+)"[^}]*"title":\{"runs":\[\{"text":"([^"]*)"[^}]*\][^}]*"ownerText":\{"runs":\[\{"text":"([^"]*)"[^}]*\][^}]*"lengthText":\{"accessibility":\{"accessibilityData":\{"label":"([^"]*)"[^}]*\}/g;
+  const patterns = [
+    /"videoRenderer":\{"videoId":"([^"]+)"[^}]*?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"[^}]*?\][^}]*?"ownerText"?:?\{?"runs"?:?\[?\{?"text"?:?"((?:[^"\\]|\\.)*)"/g,
+    /"videoId":"([^"]{11})"[^}]*?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/g,
+    /watch\?v=([^"&]{11})[^"]*"[^}]*"title":\{"simpleText":"((?:[^"\\]|\\.)*)"/g,
+  ];
 
-  let match;
-  while (match = videoRegex.exec(html)) {
-    const [, videoId, title, channel, duration] = match;
-    if (videoId && title && !results.find((r) => r.videoId === videoId)) {
-      results.push({
-        videoId,
-        title: title.replace(/\\u0026/g, "&").replace(/\\"/g, '"'),
-        channel: channel.replace(/\\u0026/g, "&").replace(/\\"/g, '"'),
-        thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-        duration: duration || "",
-      });
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const videoId = match[1];
+      const title = (match[2] || "").replace(/\\u0026/g, "&").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      const channel = (match[3] || "Unknown").replace(/\\u0026/g, "&").replace(/\\"/g, '"');
+
+      if (videoId && videoId.length === 11 && !results.find((r) => r.videoId === videoId)) {
+        results.push({
+          videoId,
+          title: title || "Untitled",
+          channel,
+          thumbnail: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+          duration: "",
+        });
+      }
+      if (results.length >= 12) break;
     }
     if (results.length >= 12) break;
   }
 
+  if (results.length === 0) {
+    const simpleMatches = html.match(/watch\?v=([a-zA-Z0-9_-]{11})/g);
+    if (simpleMatches) {
+      const seen = new Set<string>();
+      for (const m of simpleMatches) {
+        const id = m.replace("watch?v=", "");
+        if (!seen.has(id) && id.length === 11) {
+          seen.add(id);
+          results.push({
+            videoId: id,
+            title: "YouTube Video",
+            channel: "Unknown",
+            thumbnail: `https://img.youtube.com/vi/${id}/mqdefault.jpg`,
+            duration: "",
+          });
+        }
+        if (results.length >= 12) break;
+      }
+    }
+  }
+
   return results;
+}
+
+async function getVideoInfo(videoId: string): Promise<{ title: string; channel: string } | null> {
+  try {
+    const response = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
+    if (response.ok) {
+      const data = await response.json();
+      return { title: data.title || "YouTube Video", channel: data.author_name || "Unknown" };
+    }
+  } catch {}
+  return null;
 }
 
 type RawTranscriptItem = {
@@ -163,6 +208,18 @@ Return JSON:
   }
 }
 
+function extractVideoId(input: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ];
+  for (const p of patterns) {
+    const match = input.match(p);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const action = body.action as "search" | "prepare";
@@ -173,14 +230,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "no_query" });
     }
 
+    const directId = extractVideoId(query);
+    if (directId) {
+      const info = await getVideoInfo(directId);
+      return NextResponse.json({
+        ok: true,
+        results: [
+          {
+            videoId: directId,
+            title: info?.title || "YouTube Video",
+            channel: info?.channel || "Unknown",
+            thumbnail: `https://img.youtube.com/vi/${directId}/mqdefault.jpg`,
+            duration: "",
+          },
+        ],
+      });
+    }
+
     try {
       const results = await searchYouTube(query);
       if (results.length === 0) {
-        return NextResponse.json({ ok: false, error: "no_results", message: "没有搜到视频，换个关键词试试。" });
+        return NextResponse.json({
+          ok: false,
+          error: "no_results",
+          message: "没搜到视频。你也可以直接粘贴 YouTube 视频链接到搜索框。",
+        });
       }
       return NextResponse.json({ ok: true, results });
     } catch (err) {
-      return NextResponse.json({ ok: false, error: "search_failed", message: String(err).slice(0, 200) });
+      return NextResponse.json({
+        ok: false,
+        error: "search_failed",
+        message: `搜索失败：${String(err).slice(0, 100)}。你也可以直接粘贴 YouTube 视频链接。`,
+      });
     }
   }
 

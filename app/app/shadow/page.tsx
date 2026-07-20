@@ -297,7 +297,7 @@ export default function ShadowPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") searchYouTube(); }}
-              placeholder="搜 YouTube 视频，如：restaurant English conversation, job interview practice..."
+              placeholder="搜关键词，或直接粘贴 YouTube 链接..."
             />
             <button className="searchBtn" type="button" onClick={searchYouTube} disabled={isSearching}>
               {isSearching ? <Loader2 size={18} className="spin" /> : <Search size={18} />}
