@@ -133,7 +133,10 @@ export default function ShadowPage() {
 
   async function prepareVideo(result: SearchResult) {
     setPreparingVideoId(result.videoId);
+    setSearchError("");
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 9000);
       const res = await fetch("/api/youtube-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -143,7 +146,9 @@ export default function ShadowPage() {
           title: result.title,
           channel: result.channel,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const data = await res.json();
       if (data.ok && data.video) {
         const updated = [data.video, ...customVideos];
@@ -151,10 +156,14 @@ export default function ShadowPage() {
         localStorage.setItem("speakloop:customVideos", JSON.stringify(updated));
         startPractice(data.video);
       } else {
-        setSearchError(data.message || "无法生成跟读模板。");
+        setSearchError(data.message || "无法生成跟读模板，这个视频可能没有英文字幕。");
       }
-    } catch {
-      setSearchError("网络错误，无法生成模板。");
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        setSearchError("请求超时（超过 9 秒）。服务器正在生成模板，请稍后再试，或换一个短视频。");
+      } else {
+        setSearchError("网络错误，无法生成模板。");
+      }
     }
     setPreparingVideoId(null);
   }

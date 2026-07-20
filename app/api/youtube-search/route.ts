@@ -106,9 +106,64 @@ async function fetchTranscript(videoId: string): Promise<RawTranscriptItem[]> {
       duration: item.duration || 0,
       offset: item.offset || 0,
     }));
-  } catch {
-    return [];
+  } catch (err) {
+    console.error("[youtube-search] youtube-transcript failed:", String(err).slice(0, 200));
   }
+
+  try {
+    const fallbackUrl = `https://video.google.com/timedtext?lang=en&v=${videoId}`;
+    const response = await fetch(fallbackUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (response.ok) {
+      const xml = await response.text();
+      const items: RawTranscriptItem[] = [];
+      const regex = /<text start="([\d.]+)" dur="([\d.]+)"[^>]*>(.*?)<\/text>/g;
+      let match;
+      while ((match = regex.exec(xml)) !== null) {
+        const text = match[3]
+          .replace(/&amp;/g, "&")
+          .replace(/&#39;/g, "'")
+          .replace(/&quot;/g, '"')
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/<[^>]+>/g, "")
+          .trim();
+        if (text) {
+          items.push({
+            text,
+            duration: parseFloat(match[2]) || 0,
+            offset: parseFloat(match[1]) || 0,
+          });
+        }
+      }
+      if (items.length > 0) return items;
+    }
+  } catch (err) {
+    console.error("[youtube-search] timedtext fallback failed:", String(err).slice(0, 200));
+  }
+
+  try {
+    const response = await fetch(`https://www.youtube.com/api/timedtext?lang=en&v=${videoId}&fmt=json3`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const items: RawTranscriptItem[] = (data.events || [])
+        .filter((e: any) => e.segs)
+        .map((e: any) => ({
+          text: e.segs.map((s: any) => s.utf8 || "").join("").trim(),
+          duration: (e.dDurationMs || 0) / 1000,
+          offset: (e.tStartMs || 0) / 1000,
+        }))
+        .filter((item: RawTranscriptItem) => item.text);
+      if (items.length > 0) return items;
+    }
+  } catch (err) {
+    console.error("[youtube-search] json3 fallback failed:", String(err).slice(0, 200));
+  }
+
+  return [];
 }
 
 function mergeTranscriptItems(items: RawTranscriptItem[]): { text: string; start: number; duration: number }[] {
@@ -275,16 +330,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "no_video_id" });
     }
 
+    console.log(`[youtube-search] prepare: videoId=${videoId}, title=${title}`);
+
     const rawTranscript = await fetchTranscript(videoId);
+    console.log(`[youtube-search] transcript items: ${rawTranscript.length}`);
+
     if (rawTranscript.length === 0) {
       return NextResponse.json({
         ok: false,
         error: "no_transcript",
-        message: "无法获取字幕。可能原因：视频没有英文字幕、字幕被禁用、或视频不存在。",
+        message: "无法获取字幕。这个视频可能没有英文字幕，或字幕被禁用。试试其他视频，或搜索带 'English subtitles' 的视频。",
       });
     }
 
     const merged = mergeTranscriptItems(rawTranscript);
+    console.log(`[youtube-search] merged segments: ${merged.length}`);
     const suitability = assessSuitability(merged);
 
     if (!suitability.suitable) {
