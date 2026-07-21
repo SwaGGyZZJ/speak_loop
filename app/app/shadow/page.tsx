@@ -32,6 +32,8 @@ type SearchResult = {
   channel: string;
   thumbnail: string;
   duration: string;
+  hasCaption: boolean;
+  captionUrl?: string;
 };
 
 export default function ShadowPage() {
@@ -146,6 +148,7 @@ export default function ShadowPage() {
           videoId: result.videoId,
           title: result.title,
           channel: result.channel,
+          captionUrl: result.captionUrl || "",
         }),
         signal: controller.signal,
       });
@@ -324,10 +327,14 @@ export default function ShadowPage() {
 
         {showSearch && searchResults.length > 0 && (
           <div className="searchResultsSection">
-            <h3 className="searchResultsTitle">搜索结果（点击「生成跟读模板」）</h3>
+            <h3 className="searchResultsTitle">
+              {searchResults.filter(r => r.hasCaption).length > 0
+                ? `${searchResults.filter(r => r.hasCaption).length} 个视频可跟读（有英文字幕）`
+                : "搜索结果"}
+            </h3>
             <div className="searchResultsList">
               {searchResults.map((result) => (
-                <div key={result.videoId} className="searchResultCard">
+                <div key={result.videoId} className={`searchResultCard ${result.hasCaption ? "" : "noCaption"}`}>
                   <div className="searchResultThumb">
                     <img src={result.thumbnail} alt={result.title} loading="lazy" />
                     {result.duration && <span className="videoDuration">{result.duration}</span>}
@@ -335,19 +342,28 @@ export default function ShadowPage() {
                   <div className="searchResultInfo">
                     <strong>{result.title}</strong>
                     <span className="searchResultChannel">{result.channel}</span>
-                  </div>
-                  <button
-                    className="prepareBtn"
-                    type="button"
-                    onClick={() => prepareVideo(result)}
-                    disabled={preparingVideoId === result.videoId}
-                  >
-                    {preparingVideoId === result.videoId ? (
-                      <><Loader2 size={14} className="spin" /> 生成中...</>
+                    {result.hasCaption ? (
+                      <span className="captionBadge captionBadgeYes">有字幕 · 可跟读</span>
                     ) : (
-                      <><Wand2 size={14} /> 生成跟读模板</>
+                      <span className="captionBadge captionBadgeNo">无字幕</span>
                     )}
-                  </button>
+                  </div>
+                  {result.hasCaption ? (
+                    <button
+                      className="prepareBtn"
+                      type="button"
+                      onClick={() => prepareVideo(result)}
+                      disabled={preparingVideoId === result.videoId}
+                    >
+                      {preparingVideoId === result.videoId ? (
+                        <><Loader2 size={14} className="spin" /> 生成中...</>
+                      ) : (
+                        <><Wand2 size={14} /> 生成模板</>
+                      )}
+                    </button>
+                  ) : (
+                    <span className="noCaptionHint">无法跟读</span>
+                  )}
                 </div>
               ))}
             </div>
